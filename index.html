@@ -208,15 +208,21 @@
       #coffee .cup { font-size: 15px; font-weight: 700; color: #8a362f; margin-bottom: 4px; }
 
       @media (max-width: 720px) {
-        #fascia { height: 48px; padding: 0 8px; }
-        .plate .sub, #lateboard .lbl, .gauge .lbl { display: none; }
-        .gauge { padding: 0 10px; gap: 6px; }
-        .plate { padding-right: 10px; }
-        #lateboard { padding: 0 8px; }
-        #lateboard .late-item { display: none; }
-        #lateboard .late-item:first-of-type { display: block; }
-        .sw { padding: 4px 5px; }
+        #fascia {
+          height: 48px; padding: 0 8px;
+          overflow-x: auto; scrollbar-width: none;
+        }
+        #fascia::-webkit-scrollbar { display: none; }
+        .plate .sub, #lateboard .lbl, .gauge .lbl, #lampword, .tr { display: none; }
+        .plate .name { font-size: 14px; }
+        .plate { padding-right: 8px; }
+        #clock { width: 26px; height: 26px; }
+        .gauge { padding: 0 8px; gap: 5px; }
+        .gauge .val { font-size: 13px; }
+        #lateboard { display: none; }
+        .sw { padding: 4px 4px; }
         .sw .cap { display: none; }
+        .sw .dot { width: 24px; height: 24px; }
         #inspector {
           left: 8px; right: 8px; bottom: 56px; width: auto;
           max-height: 44vh; overflow-y: auto;
@@ -281,7 +287,7 @@
       <div class="gauge">
         <div class="col">
           <span class="lbl">on layout</span>
-          <span class="val"><span id="count">0</span> trains</span>
+          <span class="val"><span id="count">0</span><span class="tr"> trains</span></span>
         </div>
       </div>
       <div id="lateboard">
