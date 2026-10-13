@@ -199,10 +199,10 @@ export function makeScene(canvas, net, terrain, decor) {
     // cast shadow under the board, skewed as if lit from the upper left
     c.save();
     c.translate(0, by1);
-    c.transform(1, 0, -0.16, 0.34, 0, 0);
+    c.transform(1, 0, -0.14, 0.30, 0, 0);
     c.translate(0, -by1);
     const sh = c.createLinearGradient(0, by1 - 30, 0, by1 + 90);
-    sh.addColorStop(0, 'rgba(8, 10, 16, 0.5)');
+    sh.addColorStop(0, 'rgba(8, 10, 16, 0.42)');
     sh.addColorStop(1, 'rgba(8, 10, 16, 0)');
     c.fillStyle = sh;
     c.beginPath();
