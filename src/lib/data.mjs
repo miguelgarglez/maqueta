@@ -1,10 +1,7 @@
 // Live data: worker snapshot + WS, per-train movers, regional weather lookup.
 import { routeLegs, projectToRoute, makeMover } from './engine.mjs';
 
-export const WORKER =
-  location.hostname === 'localhost'
-    ? 'https://maqueta.miguel-garglez.workers.dev'
-    : `${location.origin.replace(/^https?/, 'https').replace('maqueta.vercel.app', 'maqueta.miguel-garglez.workers.dev')}`;
+export const WORKER = 'https://maqueta.miguel-garglez.workers.dev';
 
 export const WX_CENTERS = [
   [60.17, 24.94], [60.45, 22.27], [61.5, 23.76], [61.87, 28.19], [62.78, 26.9],
