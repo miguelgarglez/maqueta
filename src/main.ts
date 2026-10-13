@@ -36,24 +36,72 @@ resize();
 
 // ---------- interaction ----------
 let dragging = false, moved = 0, lx = 0, ly = 0;
+let vx = 0, vy = 0; // pan velocity for inertia (css px/frame)
+
+function clampCam() {
+  const b = net.bounds, M = 130_000;
+  cam.cx = Math.max(b.minX - M, Math.min(b.maxX + M, cam.cx));
+  cam.cy = Math.max(b.minY - M, Math.min(b.maxY + M, cam.cy));
+}
+
+const pointers = new Map<number, [number, number]>();
+let pinchD = 0;
 canvas.addEventListener('pointerdown', e => {
+  pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinchD = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    dragging = false;
+    return;
+  }
   dragging = true; moved = 0; lx = e.clientX; ly = e.clientY;
+  vx = vy = 0;
   cam.follow = null; updateFollowBtn();
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', e => {
-  if (!dragging) return;
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, [e.clientX, e.clientY]);
   const dpr = Math.min(devicePixelRatio || 1, 2);
+  if (pointers.size === 2) {
+    // pinch: scale around the midpoint
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinchD > 0 && d > 0) {
+      const mx = ((a[0] + b[0]) / 2) * dpr, my = ((a[1] + b[1]) / 2) * dpr;
+      const before = cam.toWorld(mx, my);
+      cam.scale = Math.max(cam.min, Math.min(cam.max, cam.scale * (d / pinchD)));
+      const after = cam.toWorld(mx, my);
+      cam.cx += before[0] - after[0];
+      cam.cy += before[1] - after[1];
+      clampCam();
+    }
+    pinchD = d;
+    return;
+  }
+  if (!dragging) return;
   const dx = (e.clientX - lx) * dpr, dy = (e.clientY - ly) * dpr;
   moved += Math.abs(dx) + Math.abs(dy);
   cam.cx -= dx / cam.scale;
   cam.cy += dy / (cam.scale * cam.squash);
+  vx = dx; vy = dy;
+  clampCam();
   lx = e.clientX; ly = e.clientY;
 });
-canvas.addEventListener('pointerup', e => {
-  dragging = false;
-  if (moved < 8) pick(e.clientX, e.clientY);
-});
+function endPointer(e: PointerEvent) {
+  pointers.delete(e.pointerId);
+  pinchD = 0;
+  if (pointers.size === 1) {
+    // resume single-finger drag without a jump
+    const [r] = [...pointers.values()];
+    lx = r[0]; ly = r[1]; dragging = true; moved = 99;
+  } else if (pointers.size === 0 && dragging) {
+    dragging = false;
+    if (moved < 8) pick(e.clientX, e.clientY);
+  }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -62,21 +110,8 @@ canvas.addEventListener('wheel', e => {
   const after = cam.toWorld(e.clientX * dpr, e.clientY * dpr);
   cam.cx += before[0] - after[0];
   cam.cy += before[1] - after[1];
+  clampCam();
 }, { passive: false });
-
-// pinch zoom
-const pointers = new Map<number, [number, number]>();
-canvas.addEventListener('pointerdown', e => pointers.set(e.pointerId, [e.clientX, e.clientY]));
-canvas.addEventListener('pointermove', e => {
-  if (!pointers.has(e.pointerId)) return;
-  pointers.set(e.pointerId, [e.clientX, e.clientY]);
-  if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()];
-    // handled implicitly next frame — simple approach
-  }
-});
-canvas.addEventListener('pointerup', e => pointers.delete(e.pointerId));
-canvas.addEventListener('pointercancel', e => pointers.delete(e.pointerId));
 
 // ---------- picking + inspector ----------
 interface Sel { tv: any }
@@ -132,10 +167,10 @@ function renderInspBody(tv: any, consist?: any) {
       `<div class="wagon${w.loco ? ' loco' : ''}" title="${w.type}${w.power ? ' · ' + w.power : ''}">${w.loco ? '◮' : ''}<i>${w.type}</i></div>`).join('')}</div>`;
   }
   const stops = [stName(tv.chain[0].from), ...tv.chain.map((c: any) => stName(c.to))];
-  const routeTxt = stops.length > 5
-    ? `${stops.slice(0, 3).join(' → ')} → <i>+${stops.length - 4} stops</i> → ${stops[stops.length - 1]}`
-    : stops.join(' → ');
-  html += `<div class="row"><span>route</span>${routeTxt}</div>`;
+  const chips = stops.length > 4
+    ? [stops[0], stops[1], `+${stops.length - 3} stops`, stops[stops.length - 1]]
+    : stops;
+  html += `<div class="row"><span>route</span><span class="routeline">${chips.map(s => `<em>${s}</em>`).join('<b>→</b>')}</span></div>`;
   inspBody.innerHTML = html;
 }
 
@@ -148,18 +183,30 @@ document.getElementById('insp-close')!.addEventListener('click', unselect);
 addEventListener('keydown', e => { if (e.key === 'Escape') unselect(); });
 
 // ---------- fascia ----------
-const clockEl = document.getElementById('clock')!;
 const countEl = document.getElementById('count')!;
-const statusEl = document.getElementById('status')!;
 const lateEl = document.getElementById('lateboard')!;
+const lampEl = document.getElementById('lamp')!;
+const coffeeEl = document.getElementById('coffee')!;
 
-function hel() {
-  return new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Helsinki', hour: '2-digit', minute: '2-digit' });
+// brass clock — real sweeping hands
+const hh = document.getElementById('hh') as unknown as SVGGElement;
+const mh = document.getElementById('mh') as unknown as SVGGElement;
+const sh = document.getElementById('sh') as unknown as SVGGElement;
+function tickClock() {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Helsinki' }));
+  const s = d.getSeconds() + d.getMilliseconds() / 1000;
+  const m = d.getMinutes() + s / 60;
+  const h = (d.getHours() % 12) + m / 60;
+  sh.setAttribute('transform', `rotate(${s * 6} 16 16)`);
+  mh.setAttribute('transform', `rotate(${m * 6} 16 16)`);
+  hh.setAttribute('transform', `rotate(${h * 30} 16 16)`);
 }
-setInterval(() => {
-  clockEl.textContent = hel() + ' HEL';
-}, 1000);
-clockEl.textContent = hel() + ' HEL';
+tickClock();
+const clockTimer = reduced ? setInterval(tickClock, 1000) : 0;
+if (!reduced) (function spin() { tickClock(); requestAnimationFrame(spin); })();
+void clockTimer;
+
+let lastLive = -18_000; // grace period on boot before the "offline" state shows
 
 const followBtn = document.getElementById('btn-follow')!;
 function updateFollowBtn() {
@@ -250,8 +297,15 @@ document.getElementById('about-close')!.addEventListener('click', () => {
 });
 
 // ---------- frame ----------
-let lastStatus = '';
 function draw(now: number) {
+  // inertia after a flick
+  if (!dragging && !cam.follow && (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1)) {
+    cam.cx -= vx / cam.scale;
+    cam.cy += vy / (cam.scale * cam.squash);
+    vx *= 0.92; vy *= 0.92;
+    clampCam();
+  }
+
   // follow
   if (cam.follow) {
     const s = cam.follow.mover.tick(now);
@@ -274,16 +328,38 @@ function draw(now: number) {
   drawAllTrains(day);
   if (!reduced) weather.draw(ctx, cam, now);
 
+  // station labels above the trains
+  if (scene.labels.length) {
+    ctx.textBaseline = 'middle';
+    for (const L of scene.labels) {
+      ctx.font = `500 ${L.fs}px 'Bricolage Grotesque', sans-serif`;
+      ctx.strokeStyle = `rgba(200,225,190,${(0.75 * day + 0.1).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, L.fs * 0.22);
+      ctx.lineJoin = 'round';
+      ctx.strokeText(L.name, L.x, L.y);
+      ctx.fillStyle = day < 0.5 ? '#b8c8d8' : '#3a352f';
+      ctx.fillText(L.name, L.x, L.y);
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
+
   // night dim + lamps
   if (day < 1) paintNight(day, dusk);
 
-  // hud status
+  // degraded state: connection lost — dim the layout, red lamp, coffee card
+  if (store.live) lastLive = now;
+  const offline = now - lastLive > 30_000;
+  if (offline) {
+    ctx.fillStyle = 'rgba(20, 22, 30, 0.35)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  lampEl.classList.toggle('dead', offline);
+  coffeeEl.classList.toggle('open', offline);
+  coffeeEl.setAttribute('aria-hidden', offline ? 'false' : 'true');
+
+  // fascia counters
   const n = store.trains.size;
   const lates = [...store.trains.values()].filter(t => t.dl >= 5).length;
-  const st = store.live
-    ? `${n} trains running · ${lates} late`
-    : 'reconnecting…';
-  if (st !== lastStatus) { statusEl.textContent = st; lastStatus = st; }
   countEl.textContent = String(n);
 
   // late board — top 3 delayed services

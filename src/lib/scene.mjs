@@ -103,8 +103,8 @@ export function makeCam(canvas, net) {
   };
   cam.fit = () => {
     cam.scale = Math.min(
-      canvas.width / (b.maxX - b.minX + 240_000),
-      canvas.height / ((b.maxY - b.minY) * cam.squash + 240_000),
+      canvas.width / (b.maxX - b.minX + 120_000),
+      canvas.height / ((b.maxY - b.minY) * cam.squash + 150_000),
     );
     cam.min = cam.scale * 0.55;
   };
@@ -125,6 +125,7 @@ export function makeScene(canvas, net, terrain, decor) {
   const base = document.createElement('canvas');
   const bctx = base.getContext('2d');
   let baseKey = '';
+  const labels = [];
 
   function paintBase(cam, sunAlt) {
     const day = dayness(sunAlt), dusk = duskness(sunAlt);
@@ -136,19 +137,43 @@ export function makeScene(canvas, net, terrain, decor) {
     const c = bctx;
     c.setTransform(1, 0, 0, 1, 0, 0);
 
-    // room sky — a painted cyclorama behind the board
-    const g = c.createLinearGradient(0, 0, 0, h);
+    // the room: wall above, tabletop below — the diorama sits on the table
+    const horizon = h * 0.62;
+    const g = c.createLinearGradient(0, 0, 0, horizon);
     const top = SKY.day.top.map((v, i) => lerp(lerp(SKY.night.top[i], SKY.dusk.top[i], dusk), v, day));
     const bot = SKY.day.bot.map((v, i) => lerp(lerp(SKY.night.bot[i], SKY.dusk.bot[i], dusk), v, day));
     g.addColorStop(0, mixRgb([0, 0, 0], top, 1));
     g.addColorStop(1, mixRgb([0, 0, 0], bot, 1));
     c.fillStyle = g;
-    c.fillRect(0, 0, w, h);
+    c.fillRect(0, 0, w, horizon);
+
+    // dusk warmth pooling at the horizon behind the board
+    if (dusk > 0.02) {
+      const hg = c.createLinearGradient(0, horizon - h * 0.3, 0, horizon);
+      hg.addColorStop(0, 'rgba(230,150,90,0)');
+      hg.addColorStop(1, `rgba(232,152,92,${(0.34 * dusk).toFixed(3)})`);
+      c.fillStyle = hg;
+      c.fillRect(0, horizon - h * 0.3, w, h * 0.3);
+    }
+
+    // tabletop — warm wood, darker toward the front edge
+    const tg = c.createLinearGradient(0, horizon, 0, h);
+    tg.addColorStop(0, mixRgb(rgb('#3a2e22'), rgb('#a8825c'), day));
+    tg.addColorStop(0.25, mixRgb(rgb('#33281e'), rgb('#96713f'), day));
+    tg.addColorStop(1, mixRgb(rgb('#241c14'), rgb('#7d6243'), day));
+    c.fillStyle = tg;
+    c.fillRect(0, horizon, w, h - horizon);
+    // faint grain streaks
+    c.strokeStyle = `rgba(60,40,20,${(0.12 * day + 0.03).toFixed(3)})`;
+    c.lineWidth = 1;
+    for (let y = horizon + 8; y < h; y += 9) {
+      c.beginPath(); c.moveTo(0, y + Math.sin(y * 0.7) * 2); c.lineTo(w, y + Math.cos(y * 0.5) * 2); c.stroke();
+    }
 
     // spotlight: the room falls away from the board
     const vg = c.createRadialGradient(w / 2, h * 0.46, Math.min(w, h) * 0.35, w / 2, h * 0.5, Math.max(w, h) * 0.85);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(8, 10, 18, 0.5)');
+    vg.addColorStop(1, 'rgba(8, 10, 18, 0.42)');
     c.fillStyle = vg;
     c.fillRect(0, 0, w, h);
 
@@ -171,11 +196,19 @@ export function makeScene(canvas, net, terrain, decor) {
     const bw = bx1 - bx0, bh = by1 - by0;
     const rad = Math.min(46, Math.min(bw, bh) * 0.07);
 
-    // shadow under the board
-    c.fillStyle = 'rgba(10, 14, 24, 0.38)';
+    // cast shadow under the board, skewed as if lit from the upper left
+    c.save();
+    c.translate(0, by1);
+    c.transform(1, 0, -0.16, 0.34, 0, 0);
+    c.translate(0, -by1);
+    const sh = c.createLinearGradient(0, by1 - 30, 0, by1 + 90);
+    sh.addColorStop(0, 'rgba(8, 10, 16, 0.5)');
+    sh.addColorStop(1, 'rgba(8, 10, 16, 0)');
+    c.fillStyle = sh;
     c.beginPath();
-    c.roundRect(bx0 - 8, by0 - 2, bw + 16, bh + 22, rad + 4);
+    c.roundRect(bx0 + 14, by0 + bh * 0.06, bw - 6, bh, rad + 4);
     c.fill();
+    c.restore();
 
     // wooden rim (outer) then the sea inside
     c.fillStyle = mixRgb(rgb('#4a3420'), rgb('#9a6f42'), day);
@@ -255,9 +288,9 @@ export function makeScene(canvas, net, terrain, decor) {
     const dk = mixRgb(rgb('#2c2620'), rgb(C.sleeper), day);
     const bl = mixRgb(rgb('#57503f'), rgb(C.ballast), day);
     const rl = mixRgb(rgb('#d9d2c4'), rgb(C.rail), day);
-    if (cam.scale > 0.0022) track(1700, dk, [2.2, 5.5]);  // sleeper texture when close
-    track(1400, bl);                                        // ballast bed
-    track(500, rl);                                         // rail line
+    if (cam.scale > 0.0022) track(1900, dk, [2.2, 5.5]);  // sleeper texture when close
+    track(2000, bl);                                        // ballast bed — exaggerated like the stock
+    track(700, rl);                                         // rail line
 
     // towns — tiny block clusters
     const house = mixRgb(rgb('#3a3f38'), rgb('#e8dcc4'), day);
@@ -292,11 +325,13 @@ export function makeScene(canvas, net, terrain, decor) {
       }
     }
 
-    // stations — platform slabs + labels with greedy collision avoidance
+    // stations — platform slabs in the base; labels are deferred to
+    // scene.labels so the live layer can draw them *above* the trains
     const lab = cam.scale > 0.0016;
     const psl = Math.max(1.6, 700 * cam.scale);
     const placed = [];
     const minGap = 64;
+    labels.length = 0;
     c.fillStyle = mixRgb(rgb('#5a5548'), rgb(C.platform), day);
     for (const s of net.stations.values()) {
       const [x, y] = cam.toPx(s.x, s.y);
@@ -312,10 +347,7 @@ export function makeScene(canvas, net, terrain, decor) {
           if (Math.abs(x - qx) < wEst + minGap * 0.5 && Math.abs(y - qy) < fs * 1.7) { clash = true; break; }
         }
         if (!clash) {
-          c.font = `500 ${fs}px 'Bricolage Grotesque', sans-serif`;
-          c.fillStyle = mixRgb(rgb('#8fa0b8'), rgb('#3a352f'), day);
-          c.fillText(s.name, x + psl * 1.6, y + fs * 0.35);
-          c.fillStyle = mixRgb(rgb('#5a5548'), rgb(C.platform), day);
+          labels.push({ x: x + psl * 1.6, y: y + fs * 0.35, fs, name: s.name });
           placed.push([x, y]);
         }
       }
@@ -327,7 +359,7 @@ export function makeScene(canvas, net, terrain, decor) {
     return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
   }
 
-  return { base, bctx, paintBase };
+  return { base, bctx, paintBase, labels };
 }
 
 // ---------- weather ----------
