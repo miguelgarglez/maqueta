@@ -1,0 +1,18 @@
+{
+  "name": "maqueta",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node test/engine.mjs",
+    "worker": "wrangler deploy --config worker/wrangler.toml"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.0",
+    "typescript": "5.9.3",
+    "vite": "7.1.9"
+  }
+}

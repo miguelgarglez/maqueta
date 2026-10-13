@@ -1,0 +1,17 @@
+name = "maqueta"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+
+[durable_objects]
+bindings = [{ name = "LAYOUT", class_name = "Layout" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Layout"]
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[observability]
+enabled = true

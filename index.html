@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>maqueta — a living model railway of Finland</title>
+    <meta name="description" content="Every real train in Finland, running live — late — on a miniature wooden layout." />
+    <meta property="og:title" content="maqueta — a living model railway of Finland" />
+    <meta property="og:description" content="Every real train in Finland, running live — late — on a miniature wooden layout." />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #2e2a26;
+        --birch: #d9b07c;
+        --birch-dark: #b8895a;
+        --birch-deep: #9a6f42;
+        --brass: #e8c677;
+        --cream: #f6efe0;
+        --red: #c94f3d;
+        --green: #3e7d5b;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+        background: #1a2438;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+      #scene:active { cursor: grabbing; }
+
+      /* tilt-shift: model-world depth of field */
+      .tilt { position: fixed; left: 0; right: 0; height: 11vh; pointer-events: none; z-index: 3; }
+      .tilt.top { top: 0; backdrop-filter: blur(2.2px) saturate(1.05); mask-image: linear-gradient(to bottom, black, transparent); -webkit-mask-image: linear-gradient(to bottom, black, transparent); }
+      .tilt.bottom { bottom: 0; backdrop-filter: blur(2.2px) saturate(1.05); mask-image: linear-gradient(to top, black, transparent); -webkit-mask-image: linear-gradient(to top, black, transparent); }
+
+      /* ---------- fascia: the layout's control panel ---------- */
+      #fascia {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+        display: flex; align-items: stretch; gap: 0;
+        height: 54px;
+        background:
+          linear-gradient(to bottom, rgba(255,255,255,.28), rgba(255,255,255,0) 3px),
+          repeating-linear-gradient(93deg, rgba(120,80,40,.06) 0 7px, transparent 7px 19px),
+          linear-gradient(to bottom, var(--birch) 0%, #cfa06a 78%, var(--birch-dark) 100%);
+        border-top: 3px solid var(--birch-deep);
+        box-shadow: 0 -14px 34px rgba(10, 15, 30, .35), inset 0 1px 0 rgba(255,255,255,.5);
+        padding: 0 14px;
+        user-select: none;
+      }
+      .plate {
+        display: flex; align-items: center; gap: 9px;
+        padding: 0 16px 0 2px;
+        border-right: 1px solid rgba(120, 80, 40, .35);
+      }
+      .plate .name {
+        font-weight: 800; font-size: 21px; letter-spacing: .045em;
+        color: #6b4a26;
+        text-shadow: 0 1px 0 rgba(255,235,200,.75), 0 -1px 0 rgba(80,50,20,.5);
+      }
+      .plate .sub {
+        font-size: 9.5px; line-height: 1.25; letter-spacing: .14em; text-transform: uppercase;
+        color: #8a6236; font-weight: 600;
+      }
+      .gauge {
+        display: flex; flex-direction: column; justify-content: center; gap: 1px;
+        padding: 0 16px;
+        border-right: 1px solid rgba(120, 80, 40, .35);
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      }
+      .gauge .lbl { font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: #8a6236; font-weight: 500; }
+      .gauge .val { font-size: 15px; font-weight: 500; color: #4a3018; }
+      #lateboard {
+        display: flex; align-items: center; gap: 6px;
+        padding: 0 16px; flex: 1; min-width: 0;
+        border-right: 1px solid rgba(120, 80, 40, .35);
+        overflow: hidden;
+      }
+      #lateboard .lbl { font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: #8a6236; font-weight: 500; font-family: 'IBM Plex Mono', ui-monospace, monospace; white-space: nowrap; }
+      .late-item {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11.5px;
+        background: #4a3018; color: #ffd98a; border: 0; border-radius: 3px;
+        padding: 4px 8px; cursor: pointer; white-space: nowrap;
+        box-shadow: inset 0 0 8px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.3);
+      }
+      .late-item b { color: #ff9a7a; }
+      .late-item:hover { background: #3a2510; }
+      .all-good { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11.5px; color: #8a6236; }
+      .switch-row { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 14px; }
+      .sw {
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        background: none; border: 0; cursor: pointer; padding: 4px 8px;
+        color: #6b4a26;
+      }
+      .sw .dot {
+        width: 26px; height: 26px; border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #f2ddb8, #c99859 60%, #a4713a);
+        border: 2px solid rgba(90, 60, 25, .55);
+        box-shadow: 0 2px 3px rgba(60,35,10,.4), inset 0 1px 2px rgba(255,255,255,.5);
+        display: grid; place-items: center;
+        transition: transform .12s ease;
+      }
+      .sw:active .dot { transform: scale(.92); }
+      .sw .dot svg { width: 13px; height: 13px; fill: none; stroke: #5a3c1e; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .sw .cap { font-size: 8px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: #7a5527; }
+      .sw.on .dot { background: radial-gradient(circle at 35% 30%, #fff0c8, var(--brass) 60%, #b98d3f); box-shadow: 0 0 10px rgba(255, 220, 140, .8), 0 2px 3px rgba(60,35,10,.4); }
+      #status {
+        position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 9;
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .08em;
+        color: rgba(255,255,255,.92); background: rgba(20,28,44,.55);
+        padding: 6px 14px; border-radius: 20px; backdrop-filter: blur(6px);
+        pointer-events: none;
+      }
+
+      /* ---------- inspector card ---------- */
+      #inspector {
+        position: fixed; left: 14px; bottom: 66px; transform: translateY(14px); z-index: 11;
+        width: min(400px, calc(100vw - 24px));
+        background: var(--cream);
+        border: 1.5px solid #c9a877;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(15, 20, 35, .4), 0 2px 0 rgba(255,255,255,.6) inset;
+        padding: 14px 16px 12px;
+        opacity: 0; pointer-events: none;
+        transition: opacity .18s ease, transform .18s ease;
+      }
+      #inspector.open { opacity: 1; transform: none; pointer-events: auto; }
+      #insp-title { font-size: 19px; font-weight: 800; color: var(--ink); letter-spacing: .01em; }
+      #insp-sub { font-size: 12px; color: #8a7355; margin: 1px 0 8px; }
+      #insp-close {
+        position: absolute; top: 8px; right: 8px;
+        width: 26px; height: 26px; border-radius: 50%;
+        border: 1.5px solid #c9a877; background: none; color: #8a7355;
+        font-size: 14px; cursor: pointer; line-height: 1;
+      }
+      #insp-body .row {
+        display: flex; gap: 10px; font-size: 12.5px; padding: 5px 0;
+        border-top: 1px dashed #d8c3a0; color: #4a3d2c;
+        line-height: 1.45;
+      }
+      #insp-body .row > span {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+        color: #a08456; min-width: 52px; padding-top: 2px;
+      }
+      #insp-body .late { color: var(--red); }
+      #insp-body .ontime { color: var(--green); }
+      .wagons { display: flex; gap: 3px; padding: 8px 0; overflow-x: auto; }
+      .wagon {
+        min-width: 34px; height: 22px; border-radius: 4px;
+        background: #e3d5b8; border: 1px solid #b09368;
+        display: flex; align-items: center; justify-content: center;
+        font-style: normal; font-size: 8px; color: #6b5433;
+        flex-shrink: 0; position: relative;
+      }
+      .wagon.loco { background: var(--green); border-color: #2c5a41; color: #f2ebdc; }
+      .wagon i { font-style: normal; transform: scale(.85); }
+
+      /* ---------- about ---------- */
+      #about {
+        position: fixed; right: 14px; bottom: 66px; z-index: 11;
+        width: min(330px, calc(100vw - 24px));
+        background: var(--cream); border: 1.5px solid #c9a877; border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(15, 20, 35, .4);
+        padding: 16px 18px;
+        opacity: 0; pointer-events: none; transform: translateY(10px);
+        transition: opacity .18s ease, transform .18s ease;
+        font-size: 13px; line-height: 1.55; color: #4a3d2c;
+      }
+      #about.open { opacity: 1; transform: none; pointer-events: auto; }
+      #about h2 { font-size: 16px; margin-bottom: 6px; color: var(--ink); }
+      #about p { margin-bottom: 8px; }
+      #about a { color: #7a5527; }
+      #about-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #c9a877; background: none; color: #8a7355; font-size: 14px; cursor: pointer; }
+      .kbd { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 10px; background: #e8dcc4; border-radius: 3px; padding: 1px 4px; border: 1px solid #c9a877; }
+
+      @media (max-width: 720px) {
+        #fascia { height: 48px; padding: 0 8px; }
+        .plate .sub, #lateboard .lbl { display: none; }
+        .gauge { padding: 0 10px; }
+        .plate { padding-right: 10px; }
+        #lateboard { padding: 0 8px; }
+        .sw { padding: 4px 5px; }
+        .sw .cap { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #inspector, #about { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene" aria-label="Live model railway of Finland. Trains move along the network in real time."></canvas>
+    <div class="tilt top"></div>
+    <div class="tilt bottom"></div>
+
+    <div id="status" role="status">warming up…</div>
+
+    <div id="inspector" role="dialog" aria-label="Train details" aria-hidden="true">
+      <button id="insp-close" aria-label="Close">×</button>
+      <div id="insp-title">—</div>
+      <div id="insp-sub"></div>
+      <div id="insp-body"></div>
+    </div>
+
+    <div id="about" role="dialog" aria-label="About maqueta" aria-hidden="true">
+      <button id="about-close" aria-label="Close">×</button>
+      <h2>maqueta</h2>
+      <p>A living model railway of Finland. Every train you see is real — positions, delays and rolling stock stream in from Fintraffic's Digitraffic API every 15 seconds.</p>
+      <p>The layout compresses the country like a real model does; the sun, dusk and weather match Finland's actual sky. Night trains glow. Late trains run late.</p>
+      <p>Click a train to inspect it. <span class="kbd">esc</span> closes. Drag to pan, scroll to zoom.</p>
+      <p><a href="https://github.com/miguelgarglez/maqueta">source on github</a> · data © Fintraffic / Digitraffic</p>
+    </div>
+
+    <div id="fascia">
+      <div class="plate">
+        <span class="name">maqueta</span>
+        <span class="sub">live model railway<br />of finland</span>
+      </div>
+      <div class="gauge">
+        <span class="lbl">helsinki</span>
+        <span class="val" id="clock">--:--</span>
+      </div>
+      <div class="gauge">
+        <span class="lbl">on layout</span>
+        <span class="val"><span id="count">0</span> trains</span>
+      </div>
+      <div id="lateboard">
+        <span class="lbl">delays</span>
+      </div>
+      <div class="switch-row">
+        <button class="sw" id="btn-follow" aria-pressed="false" aria-label="Follow a train">
+          <span class="dot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="#5a3c1e"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>
+          <span class="cap">follow</span>
+        </button>
+        <button class="sw" id="btn-late" aria-label="Find the most delayed train">
+          <span class="dot"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 8v5l3 2M9 3h6"/></svg></span>
+          <span class="cap">latest</span>
+        </button>
+        <button class="sw" id="btn-sound" aria-pressed="false" aria-label="Toggle sound">
+          <span class="dot"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/></svg></span>
+          <span class="cap">sound</span>
+        </button>
+        <button class="sw" id="btn-about" aria-label="About this layout">
+          <span class="dot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="1" fill="#5a3c1e"/></svg></span>
+          <span class="cap">about</span>
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
