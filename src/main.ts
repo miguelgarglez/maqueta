@@ -354,6 +354,7 @@ function draw(now: number) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   lampEl.classList.toggle('dead', offline);
+  document.getElementById('lampword')!.textContent = offline ? 'offline' : 'live';
   coffeeEl.classList.toggle('open', offline);
   coffeeEl.setAttribute('aria-hidden', offline ? 'false' : 'true');
 
